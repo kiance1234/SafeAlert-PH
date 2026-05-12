@@ -1,0 +1,2783 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="SafeAlert PH - SMS Lifeline for Disaster Response. Western Visayas Region VI emergency communication system.">
+    <title>SafeAlert PH | Region VI SMS Lifeline</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        disaster: {
+                            red: '#dc2626',
+                            darkRed: '#991b1b',
+                            orange: '#ea580c',
+                            cyan: '#06b6d4',
+                            dark: '#0f172a',
+                            gray: '#1e293b',
+                            amber: '#f59e0b'
+                        }
+                    },
+                    animation: {
+                        'pulse-sos': 'pulse-sos 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+                        'scan': 'scan 4s linear infinite',
+                        'flash': 'flash 1s infinite',
+                    },
+                    keyframes: {
+                        'pulse-sos': {
+                            '0%, 100%': { boxShadow: '0 0 0 0 rgba(220, 38, 38, 0.7)' },
+                            '70%': { boxShadow: '0 0 0 25px rgba(220, 38, 38, 0)' },
+                        },
+                        shake: {
+                            '0%, 100%': { transform: 'translateX(0)' },
+                            '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-5px)' },
+                            '20%, 40%, 60%, 80%': { transform: 'translateX(5px)' }
+                        },
+                        scan: {
+                            '0%': { top: '0%' },
+                            '100%': { top: '100%' }
+                        },
+                        flash: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.5' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .phone-notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 28px;
+            background-color: #000;
+            border-bottom-left-radius: 16px;
+            border-bottom-right-radius: 16px;
+            z-index: 50;
+        }
+
+        .sos-btn-emergency {
+            background: linear-gradient(145deg, #dc2626 0%, #991b1b 100%);
+            box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+            animation: pulse-sos 2s infinite;
+            position: relative;
+            overflow: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+        .leaflet-container { background: #0f172a; font-family: 'Inter', sans-serif; }
+        
+        #rescue-map { width: 100%; height: 100%; z-index: 1; }
+
+        .form-input {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 16px;
+        }
+        .form-input:focus {
+            border-color: #dc2626;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+
+        .form-label {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .required::after {
+            content: ' *';
+            color: #dc2626;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.625rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 1.5rem;
+            border-left: 2px solid #334155;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            top: 0.5rem;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #dc2626;
+        }
+        .timeline-item.active::before {
+            background: #10b981;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.98);
+            border: 1px solid rgba(220, 38, 38, 0.5);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            z-index: 1000;
+            display: none;
+            backdrop-filter: blur(10px);
+            max-width: 90%;
+            text-align: center;
+        }
+        .toast.show { display: block; animation: slideUp 0.3s ease; }
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(100%); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+
+        .network-mode-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .mode-sms { background: rgba(220, 38, 38, 0.2); color: #ef4444; border: 1px solid rgba(220, 38, 38, 0.4); }
+        .mode-mesh { background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4); }
+
+        .sms-payload {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: #fca5a5;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .protocol-log {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+        }
+        .protocol-log .timestamp { color: #64748b; }
+        .protocol-log .event-sms { color: #ef4444; }
+        .protocol-log .event-ack { color: #10b981; }
+
+        .scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.5), transparent);
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .mesh-node {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #06b6d4;
+            border-radius: 50%;
+            border: 2px solid #0f172a;
+            transition: all 0.3s ease;
+        }
+        .mesh-node.active {
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+        .mesh-node.relay {
+            background: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }
+        .mesh-connection {
+            position: absolute;
+            height: 2px;
+            background: linear-gradient(90deg, #06b6d4, transparent);
+            transform-origin: left center;
+            opacity: 0.3;
+            transition: opacity 0.3s;
+        }
+        .mesh-connection.active {
+            opacity: 1;
+            background: linear-gradient(90deg, #10b981, #06b6d4);
+            animation: dataFlow 1s linear infinite;
+        }
+
+        @keyframes dataFlow {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
+
+        .disaster-type-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .disaster-type-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(220, 38, 38, 0.5);
+        }
+        .disaster-type-card.selected {
+            border-color: #dc2626;
+            background: rgba(220, 38, 38, 0.1);
+        }
+
+        .severity-indicator {
+            display: inline-flex;
+            gap: 2px;
+        }
+        .severity-bar {
+            width: 4px;
+            height: 12px;
+            background: #334155;
+            border-radius: 2px;
+        }
+        .severity-bar.active {
+            background: #dc2626;
+        }
+
+        .responder-unit {
+            transition: all 0.3s ease;
+        }
+        .responder-unit:hover {
+            background: rgba(30, 41, 59, 0.9);
+            transform: translateX(4px);
+        }
+        .responder-unit.dispatched {
+            border-left: 3px solid #10b981;
+        }
+
+        .alert-priority-high { border-left: 4px solid #dc2626; }
+        .alert-priority-medium { border-left: 4px solid #f59e0b; }
+        .alert-priority-low { border-left: 4px solid #3b82f6; }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            border: 1px solid rgba(220, 38, 38, 0.5);
+            border-radius: 8px;
+        }
+        .leaflet-popup-tip {
+            background: rgba(15, 23, 42, 0.95);
+        }
+        .leaflet-container a.leaflet-popup-close-button {
+            color: #94a3b8;
+        }
+        .leaflet-container a.leaflet-popup-close-button:hover {
+            color: #dc2626;
+        }
+
+        .alert-history-row {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .alert-history-row:hover {
+            background: rgba(30, 41, 59, 0.5);
+        }
+        .alert-history-row.selected {
+            background: rgba(220, 38, 38, 0.1);
+            border-left: 3px solid #dc2626;
+        }
+
+        .severity-badge-critical { background: rgba(220, 38, 38, 0.2); color: #ef4444; border: 1px solid rgba(220, 38, 38, 0.4); }
+        .severity-badge-high { background: rgba(234, 88, 12, 0.2); color: #f97316; border: 1px solid rgba(234, 88, 12, 0.4); }
+        .severity-badge-medium { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
+        .severity-badge-low { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.4); }
+
+        .status-resolved { color: #10b981; }
+        .status-pending { color: #f59e0b; }
+        .status-dispatched { color: #06b6d4; }
+        .status-cancelled { color: #64748b; }
+
+        .filter-btn {
+            transition: all 0.2s ease;
+        }
+        .filter-btn.active {
+            background: rgba(220, 38, 38, 0.2);
+            border-color: rgba(220, 38, 38, 0.5);
+            color: #ef4444;
+        }
+
+        .detail-panel {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .detail-panel.open {
+            max-height: 500px;
+        }
+
+        .pulse-marker {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.33); }
+            80%, 100% { opacity: 0; }
+        }
+
+        .chat-bubble {
+            position: relative;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            max-width: 80%;
+        }
+        .chat-bubble.sent {
+            background: rgba(220, 38, 38, 0.2);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            margin-left: auto;
+        }
+        .chat-bubble.received {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .weather-alert {
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), transparent);
+            border-left: 3px solid #f59e0b;
+        }
+    </style>
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" id="pwa-manifest">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23dc2626' width='100' height='100' rx='20'/%3E%3Ctext x='50' y='65' font-size='55' text-anchor='middle' fill='white'%3E🆘%3C/text%3E%3C/svg%3E">
+<base target="_blank">
+</head>
+<body class="antialiased selection:bg-disaster-red selection:text-white">
+
+    <div id="toast" class="toast">
+        <i class="fas fa-exclamation-circle text-disaster-red mr-2"></i>
+        <span id="toast-message">Error message</span>
+    </div>
+
+    <nav class="fixed w-full z-50 transition-all duration-300" id="navbar">
+        <div class="glass-panel border-b border-white/5">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16 md:h-20">
+                    <div class="flex items-center gap-3 cursor-pointer" onclick="window.scrollTo(0,0)">
+                        <div class="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-disaster-red to-disaster-orange rounded-xl flex items-center justify-center shadow-lg shadow-red-900/30 relative overflow-hidden">
+                            <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
+                            <i class="fas fa-satellite-dish text-white text-sm md:text-lg relative z-10"></i>
+                        </div>
+                        <div>
+                            <span class="font-bold text-xl md:text-2xl tracking-tight text-white">
+                                SafeAlert<span class="text-disaster-orange">PH</span>
+                            </span>
+                            <span class="hidden md:block text-[10px] text-slate-500 uppercase tracking-wider">Region VI - Western Visayas</span>
+                        </div>
+                    </div>
+                    
+                    <div class="hidden md:flex items-center gap-4">
+                        <div id="offline-badge" class="hidden items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/50 border border-slate-700">
+                            <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                            <span class="text-xs text-amber-400 font-medium">Offline Mode</span>
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/50 border border-slate-700">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                            <span class="text-xs text-slate-300 font-medium">Iloilo Gateway Online</span>
+                        </div>
+                        <button onclick="scrollToDemo()" class="bg-disaster-red hover:bg-red-700 text-white px-5 py-2 rounded-full text-sm font-bold transition-all shadow-lg shadow-red-900/30 hover:shadow-red-900/50 flex items-center gap-2">
+                            <i class="fas fa-play"></i> Launch Simulator
+                        </button>
+                    </div>
+
+                    <div class="md:hidden">
+                        <button onclick="toggleMobileMenu()" class="text-slate-300 hover:text-white p-2">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="mobile-menu" class="hidden md:hidden glass-panel border-t border-white/5">
+                <div class="px-4 py-3 space-y-2">
+                    <a href="#architecture" class="block text-slate-300 hover:text-white py-2 text-sm">Architecture</a>
+                    <a href="#demo" class="block text-slate-300 hover:text-white py-2 text-sm">Live Demo</a>
+                    <a href="#analytics" class="block text-slate-300 hover:text-white py-2 text-sm">Analytics</a>
+                    <a href="#history" class="block text-slate-300 hover:text-white py-2 text-sm">Alert History</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <section class="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden bg-gradient-to-b from-slate-900 to-slate-950">
+        <div class="absolute inset-0 pointer-events-none">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(234,88,12,0.15),transparent_70%)]"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+        </div>
+
+        <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/50 border border-slate-700 text-disaster-orange text-sm font-semibold mb-6 backdrop-blur-sm">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                </span>
+                Region VI Pilot Deployment
+                <span class="text-slate-500 text-xs ml-1">| NDRRMC Certified</span>
+            </div>
+            
+            <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
+                SMS Lifeline<br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-disaster-red via-disaster-orange to-yellow-500">
+                    Western Visayas
+                </span>
+            </h1>
+            
+            <p class="mt-4 max-w-3xl mx-auto text-base md:text-lg text-slate-400 mb-8">
+                Offline-capable emergency communication for <strong>Region VI</strong>. 
+                Transmit distress signals via SMS or mesh networks during typhoons, 
+                floods, and infrastructure failures across Aklan, Antique, Capiz, Guimaras, Iloilo, and Negros Occidental.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row gap-3 justify-center mb-10">
+                <button onclick="scrollToDemo()" class="group bg-gradient-to-r from-disaster-red to-disaster-orange text-white text-base font-bold px-6 py-3 rounded-xl transition-all hover:scale-105 flex items-center justify-center gap-2 shadow-lg shadow-orange-900/40">
+                    <i class="fas fa-play-circle"></i> Launch Simulator
+                </button>
+                <button class="px-6 py-3 bg-slate-800/50 hover:bg-slate-800 text-white border border-slate-700 rounded-xl font-bold transition-all hover:scale-105 flex items-center justify-center gap-2">
+                    <i class="fas fa-download"></i> Download APK
+                </button>
+            </div>
+
+            <div class="glass-card rounded-2xl p-4 max-w-4xl mx-auto mb-8">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    <div class="p-3 rounded-lg bg-red-950/30 border border-red-900/50">
+                        <i class="fas fa-signal text-disaster-red text-2xl mb-2"></i>
+                        <div class="text-sm font-bold text-white">GSM SMS</div>
+                        <div class="text-[10px] text-slate-400">2G/3G Fallback</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-cyan-950/30 border border-cyan-900/50">
+                        <i class="fas fa-network-wired text-disaster-cyan text-2xl mb-2"></i>
+                        <div class="text-sm font-bold text-white">Mesh Net</div>
+                        <div class="text-[10px] text-slate-400">Bluetooth Relay</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-emerald-950/30 border border-emerald-900/50">
+                        <i class="fas fa-map-marker-alt text-emerald-500 text-2xl mb-2"></i>
+                        <div class="text-sm font-bold text-white">6 Provinces</div>
+                        <div class="text-[10px] text-slate-400">Western Visayas</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-blue-950/30 border border-blue-900/50">
+                        <i class="fas fa-building text-blue-500 text-2xl mb-2"></i>
+                        <div class="text-sm font-bold text-white">NDRRMC VI</div>
+                        <div class="text-[10px] text-slate-500">Iloilo City OC</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+                <div class="glass-card rounded-xl p-3">
+                    <div class="text-2xl font-bold text-white stats-counter" id="stat-users">3,247</div>
+                    <div class="text-xs text-slate-500">Region VI Registered</div>
+                </div>
+                <div class="glass-card rounded-xl p-3">
+                    <div class="text-2xl font-bold text-emerald-400 stats-counter" id="stat-rescued">892</div>
+                    <div class="text-xs text-slate-500">Lives Saved (2024)</div>
+                </div>
+                <div class="glass-card rounded-xl p-3">
+                    <div class="text-2xl font-bold text-disaster-orange stats-counter">3.8<span class="text-sm">min</span></div>
+                    <div class="text-xs text-slate-500">Avg Response Time</div>
+                </div>
+                <div class="glass-card rounded-xl p-3">
+                    <div class="text-2xl font-bold text-disaster-cyan stats-counter">97.2%</div>
+                    <div class="text-xs text-slate-500">SMS Delivery Rate</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="architecture" class="py-20 bg-slate-950 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Region VI SMS Lifeline Architecture</h2>
+                <p class="text-slate-400">Single-gateway deployment for Western Visayas</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6 mb-12">
+                <div class="glass-card rounded-2xl p-6 border-t-4 border-disaster-red">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center border border-red-500/20">
+                            <i class="fas fa-signal text-disaster-red text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white">GSM SMS Gateway</h3>
+                            <span class="text-xs text-slate-500">Iloilo City Primary</span>
+                        </div>
+                    </div>
+                    <ul class="space-y-2 text-sm text-slate-400 mb-4">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>Location: Iloilo City NDRRMC OC</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>Coverage: All 6 provinces Region VI</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>Hardware: Multi-modem GSM gateway</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>Backup: Generator + UPS 48h</span>
+                        </li>
+                    </ul>
+                    <div class="bg-black/40 rounded-lg p-3 font-mono text-[10px] text-red-400/80">
+                        AT+CMGS="+639..."<br>
+                        > SAFEALERT|SA-293|10.72N|122.56E|TYPHOON|CRITICAL
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-6 border-t-4 border-disaster-cyan">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-cyan-500/10 rounded-xl flex items-center justify-center border border-cyan-500/20">
+                            <i class="fas fa-network-wired text-disaster-cyan text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white">Mesh Network</h3>
+                            <span class="text-xs text-slate-500">No Signal Fallback</span>
+                        </div>
+                    </div>
+                    <ul class="space-y-2 text-sm text-slate-400 mb-4">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>Bluetooth LE 5.0 (100m range)</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>Device-to-device relay</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>Multi-hop to evacuation centers</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-emerald-500 mt-1 text-xs"></i>
+                            <span>No infrastructure required</span>
+                        </li>
+                    </ul>
+                    <div class="bg-black/40 rounded-lg p-3 font-mono text-[10px] text-cyan-400/80">
+                        MESH|TTL=5|HOP=2|SRC=SA-293<br>
+                        DST=ILOILO-GW|LAT=10.72|LON=122.56
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                    <i class="fas fa-map-marked-alt text-disaster-orange"></i>
+                    Region VI Coverage Map
+                </h3>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div class="bg-slate-900/50 rounded-lg p-3 text-center border border-slate-800">
+                        <div class="text-lg font-bold text-white">Aklan</div>
+                        <div class="text-[10px] text-slate-500">Boracay, Kalibo</div>
+                        <div class="mt-2 flex items-center justify-center gap-1">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                            <span class="text-[10px] text-emerald-400">Active</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-lg p-3 text-center border border-slate-800">
+                        <div class="text-lg font-bold text-white">Antique</div>
+                        <div class="text-[10px] text-slate-500">San Jose, Sibalom</div>
+                        <div class="mt-2 flex items-center justify-center gap-1">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                            <span class="text-[10px] text-emerald-400">Active</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-lg p-3 text-center border border-slate-800">
+                        <div class="text-lg font-bold text-white">Capiz</div>
+                        <div class="text-[10px] text-slate-500">Roxas City</div>
+                        <div class="mt-2 flex items-center justify-center gap-1">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                            <span class="text-[10px] text-emerald-400">Active</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-lg p-3 text-center border border-slate-800">
+                        <div class="text-lg font-bold text-white">Guimaras</div>
+                        <div class="text-[10px] text-slate-500">Jordan, Buenavista</div>
+                        <div class="mt-2 flex items-center justify-center gap-1">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                            <span class="text-[10px] text-emerald-400">Active</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-lg p-3 text-center border border-emerald-500/50 relative">
+                        <div class="absolute inset-0 bg-emerald-500/5 rounded-lg"></div>
+                        <div class="text-lg font-bold text-white relative">Iloilo</div>
+                        <div class="text-[10px] text-slate-500 relative">Gateway Location</div>
+                        <div class="mt-2 flex items-center justify-center gap-1 relative">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                            <span class="text-[10px] text-emerald-400">Hub</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-lg p-3 text-center border border-slate-800">
+                        <div class="text-lg font-bold text-white">Negros Occ.</div>
+                        <div class="text-[10px] text-slate-500">Bacolod, Silay</div>
+                        <div class="mt-2 flex items-center justify-center gap-1">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                            <span class="text-[10px] text-emerald-400">Active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="demo" class="py-20 bg-slate-900 relative overflow-hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="text-center mb-10">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-900/30 border border-red-500/30 text-red-400 text-xs font-bold mb-3">
+                    <i class="fas fa-circle text-[8px] animate-pulse"></i>
+                    LIVE SIMULATION
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-3">Region VI SMS Lifeline Simulator</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto text-sm">
+                    Test emergency communication from any province in Western Visayas to Iloilo City NDRRMC Operations Center.
+                </p>
+            </div>
+
+            <div class="flex justify-center gap-2 mb-8 flex-wrap">
+                <button onclick="setNetworkMode('sms')" class="network-mode-btn active px-4 py-2 rounded-lg bg-disaster-red/20 border border-disaster-red text-disaster-red text-sm font-bold transition" data-mode="sms">
+                    <i class="fas fa-signal mr-2"></i>GSM SMS
+                </button>
+                <button onclick="setNetworkMode('mesh')" class="network-mode-btn px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 text-sm font-bold transition" data-mode="mesh">
+                    <i class="fas fa-network-wired mr-2"></i>Mesh Network
+                </button>
+            </div>
+
+            <div class="grid xl:grid-cols-3 gap-6 items-start">
+                
+                <div class="flex flex-col items-center">
+                    <div class="relative w-[320px] h-[680px] bg-black rounded-[3rem] p-3 shadow-2xl border-4 border-slate-800">
+                        <div class="phone-notch"></div>
+                        <div id="citizen-screen" class="w-full h-full bg-slate-950 rounded-[2.5rem] overflow-hidden relative flex flex-col">
+                            
+                            <div id="network-banner" class="px-4 py-2 text-center text-white text-xs font-bold z-30 mode-sms flex items-center justify-center gap-2">
+                                <i class="fas fa-signal"></i>
+                                <span id="network-text">GSM SMS MODE</span>
+                            </div>
+
+                            <div class="h-10 w-full flex justify-between items-center px-6 pt-2 text-xs text-white font-medium z-20 bg-slate-900/50">
+                                <span id="clock-citizen">12:00</span>
+                                <div class="flex gap-2 text-slate-400 items-center">
+                                    <span id="signal-indicator" class="flex items-center gap-1">
+                                        <i class="fas fa-signal text-emerald-400"></i>
+                                        <span class="text-[10px] text-emerald-400">-82dBm</span>
+                                    </span>
+                                    <i class="fas fa-battery-quarter text-orange-500"></i>
+                                </div>
+                            </div>
+
+                            <div class="flex-1 relative overflow-hidden">
+                                
+                                <div id="view-register" class="absolute inset-0 flex flex-col p-5 bg-slate-950 z-40 overflow-y-auto">
+                                    <div class="flex items-center gap-3 mb-4 mt-2">
+                                        <div class="w-10 h-10 bg-gradient-to-br from-disaster-red to-disaster-orange rounded-xl flex items-center justify-center">
+                                            <i class="fas fa-satellite-dish text-white"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-white font-bold text-lg">SafeAlert PH</h3>
+                                            <p class="text-slate-500 text-xs">Region VI Registration</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex-1 space-y-3">
+                                        <div class="bg-red-900/20 border border-red-500/30 rounded-lg p-2 mb-2">
+                                            <p class="text-red-400 text-xs text-center">
+                                                <i class="fas fa-exclamation-circle mr-1"></i>
+                                                Complete registration to activate SOS lifeline
+                                            </p>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <h4 class="text-white font-semibold text-xs border-b border-slate-800 pb-1">Personal Information</h4>
+                                            
+                                            <div>
+                                                <label class="form-label required">Full Name</label>
+                                                <input type="text" id="reg-fullname" class="form-input w-full rounded-lg px-3 py-2 text-sm" placeholder="Juan Dela Cruz">
+                                            </div>
+
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label class="form-label required">Date of Birth</label>
+                                                    <input type="date" id="reg-dob" class="form-input w-full rounded-lg px-3 py-2 text-sm">
+                                                </div>
+                                                <div>
+                                                    <label class="form-label required">Gender</label>
+                                                    <select id="reg-gender" class="form-input w-full rounded-lg px-3 py-2 text-sm">
+                                                        <option value="">Select</option>
+                                                        <option value="Male">Male</option>
+                                                        <option value="Female">Female</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label class="form-label required">Mobile Number</label>
+                                                <input type="tel" id="reg-phone" class="form-input w-full rounded-lg px-3 py-2 text-sm" placeholder="09XX XXX XXXX">
+                                            </div>
+
+                                            <div>
+                                                <label class="form-label required">Province</label>
+                                                <select id="reg-province" class="form-input w-full rounded-lg px-3 py-2 text-sm" onchange="updateDisasterContext()">
+                                                    <option value="">Select Province</option>
+                                                    <option value="Aklan">Aklan</option>
+                                                    <option value="Antique">Antique</option>
+                                                    <option value="Capiz">Capiz</option>
+                                                    <option value="Guimaras">Guimaras</option>
+                                                    <option value="Iloilo">Iloilo</option>
+                                                    <option value="Negros Occidental">Negros Occidental</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label class="form-label required">Home Address</label>
+                                                <textarea id="reg-address" rows="2" class="form-input w-full rounded-lg px-3 py-2 text-sm" placeholder="Complete address with landmarks"></textarea>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-2 pt-2 border-t border-slate-800">
+                                            <h4 class="text-disaster-red font-semibold text-xs flex items-center gap-1">
+                                                <i class="fas fa-user-shield"></i> Emergency Contact
+                                            </h4>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <input type="text" id="reg-ec-name" class="form-input w-full rounded-lg px-3 py-2 text-sm" placeholder="Contact Name">
+                                                <select id="reg-ec-relation" class="form-input w-full rounded-lg px-3 py-2 text-sm">
+                                                    <option value="">Relationship</option>
+                                                    <option value="Spouse">Spouse</option>
+                                                    <option value="Parent">Parent</option>
+                                                    <option value="Sibling">Sibling</option>
+                                                    <option value="Relative">Relative</option>
+                                                    <option value="Friend">Friend</option>
+                                                </select>
+                                            </div>
+                                            <input type="tel" id="reg-ec-phone" class="form-input w-full rounded-lg px-3 py-2 text-sm" placeholder="Contact Phone">
+                                        </div>
+
+                                        <div class="space-y-2 pt-2 border-t border-slate-800">
+                                            <h4 class="text-amber-500 font-semibold text-xs flex items-center gap-1">
+                                                <i class="fas fa-heartbeat"></i> Medical Info
+                                            </h4>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <select id="reg-bloodtype" class="form-input w-full rounded-lg px-3 py-2 text-sm">
+                                                    <option value="">Blood Type</option>
+                                                    <option value="A+">A+</option>
+                                                    <option value="B+">B+</option>
+                                                    <option value="O+">O+</option>
+                                                    <option value="AB+">AB+</option>
+                                                    <option value="A-">A-</option>
+                                                    <option value="B-">B-</option>
+                                                    <option value="O-">O-</option>
+                                                    <option value="AB-">AB-</option>
+                                                </select>
+                                                <input type="text" id="reg-medical" class="form-input w-full rounded-lg px-3 py-2 text-sm" placeholder="Allergies/Conditions">
+                                            </div>
+                                        </div>
+
+                                        <div class="pt-2">
+                                            <label class="flex items-start gap-2 cursor-pointer">
+                                                <input type="checkbox" id="reg-consent" class="mt-0.5 rounded border-slate-600 bg-slate-800 text-disaster-red focus:ring-disaster-red w-4 h-4">
+                                                <span class="text-[10px] text-slate-400">
+                                                    I consent to share my data with NDRRMC Region VI and emergency responders during disasters.
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        <button onclick="submitRegistration()" id="btn-register" class="w-full bg-gradient-to-r from-disaster-red to-disaster-orange text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-900/30">
+                                            <i class="fas fa-shield-alt"></i> Activate Lifeline
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="view-home" class="absolute inset-0 flex flex-col p-5 transition-all duration-500 hidden">
+                                    <div class="bg-slate-900/80 rounded-xl p-3 border border-slate-800 mb-3">
+                                        <div class="flex items-center gap-3">
+                                            <div id="display-avatar" class="w-10 h-10 rounded-full bg-gradient-to-br from-disaster-red to-disaster-orange flex items-center justify-center text-white font-bold text-sm">
+                                                JD
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div id="display-name" class="text-white font-semibold text-sm truncate">Guest User</div>
+                                                <div class="flex items-center gap-2 text-[10px]">
+                                                    <span class="text-emerald-400 flex items-center gap-1">
+                                                        <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+                                                        Active
+                                                    </span>
+                                                    <span class="text-slate-600">|</span>
+                                                    <span id="display-id" class="text-slate-500 font-mono">ID: ---</span>
+                                                </div>
+                                            </div>
+                                            <button onclick="showRegistration()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
+                                                <i class="fas fa-cog text-xs"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-2 mb-3">
+                                        <div class="bg-slate-900/60 rounded-lg p-2 border border-slate-800">
+                                            <div class="text-[10px] text-slate-500 mb-1">Province</div>
+                                            <div id="display-province" class="text-xs text-white truncate">---</div>
+                                        </div>
+                                        <div class="bg-slate-900/60 rounded-lg p-2 border border-slate-800">
+                                            <div class="text-[10px] text-slate-500 mb-1">Blood Type</div>
+                                            <div id="display-blood" class="text-xs text-disaster-red font-bold">---</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex-1 flex flex-col items-center justify-center space-y-4">
+                                        <div class="w-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 border border-slate-700 text-center">
+                                            <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center border-2 border-slate-700">
+                                                <i id="disaster-icon" class="fas fa-hurricane text-3xl text-disaster-orange animate-pulse"></i>
+                                            </div>
+                                            <h3 id="disaster-title" class="text-white font-bold text-lg">Typhoon Warning</h3>
+                                            <p id="disaster-desc" class="text-slate-400 text-xs mt-1">Signal No. 3 - Western Visayas</p>
+                                            
+                                            <div class="mt-3 flex items-center justify-center gap-2 text-[10px]">
+                                                <span class="px-2 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30">Evacuate Now</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="w-full space-y-2">
+                                            <div class="flex items-center justify-between text-xs text-slate-400 bg-slate-900/40 rounded-lg p-2">
+                                                <span><i class="fas fa-broadcast-tower mr-1"></i> Network Mode</span>
+                                                <span id="current-mode-display" class="text-disaster-red font-semibold">GSM SMS</span>
+                                            </div>
+                                            <div class="flex items-center justify-between text-xs text-slate-400 bg-slate-900/40 rounded-lg p-2">
+                                                <span><i class="fas fa-satellite mr-1"></i> GPS</span>
+                                                <span class="text-emerald-400 font-semibold">LOCKED ±3m</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 space-y-2">
+                                        <button id="sos-btn" onclick="triggerSOS()" class="w-full py-5 rounded-2xl sos-btn-emergency text-white font-black text-2xl tracking-widest transition-all flex items-center justify-center gap-3 border-t border-red-400 relative overflow-hidden">
+                                            <span class="relative z-10 flex items-center gap-2 drop-shadow-md">
+                                                <i class="fas fa-bell animate-bounce"></i> SOS
+                                            </span>
+                                        </button>
+                                        <div class="flex justify-between text-[10px] text-slate-500 px-1">
+                                            <span>Press to transmit</span>
+                                            <span id="battery-level">Battery: 14%</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="view-sending" class="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-30 hidden">
+                                    <div class="relative w-24 h-24 mb-4">
+                                        <div class="absolute inset-0 border-4 border-slate-800 rounded-full"></div>
+                                        <div class="absolute inset-0 border-4 border-disaster-red border-t-transparent rounded-full animate-spin"></div>
+                                        <i id="transmit-icon" class="fas fa-signal absolute inset-0 flex items-center justify-center text-disaster-red text-2xl animate-pulse"></i>
+                                    </div>
+                                    
+                                    <h3 class="text-white font-bold text-base mb-1" id="sending-phase">Initializing...</h3>
+                                    <p class="text-slate-500 text-xs mb-4" id="sending-detail">Connecting to GSM network</p>
+                                    
+                                    <div class="w-56 space-y-2">
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <div id="step-1" class="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[8px] transition-all">1</div>
+                                            <span class="text-slate-400 text-[10px]">GPS Lock</span>
+                                            <div class="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                                                <div id="bar-1" class="h-full bg-emerald-500 w-0 transition-all duration-500"></div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <div id="step-2" class="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[8px] transition-all">2</div>
+                                            <span class="text-slate-400 text-[10px]">Encode Payload</span>
+                                            <div class="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                                                <div id="bar-2" class="h-full bg-emerald-500 w-0 transition-all duration-500"></div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <div id="step-3" class="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[8px] transition-all">3</div>
+                                            <span class="text-slate-400 text-[10px]">Transmit</span>
+                                            <div class="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                                                <div id="bar-3" class="h-full bg-emerald-500 w-0 transition-all duration-500"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div id="sms-payload-preview" class="mt-4 mx-4 sms-payload hidden">
+SAFEALERT|SA-293|10.7202N|122.5621E|TYPHOON|CRITICAL|O+|JuanDelaCruz|ILOILO|BATT14%
+                                    </div>
+                                </div>
+
+                                <div id="view-sent" class="absolute inset-0 flex flex-col bg-slate-950 z-30 hidden">
+                                    <div class="flex-1 flex flex-col items-center justify-center p-5 text-center">
+                                        <div class="w-16 h-16 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 rounded-full flex items-center justify-center mb-3 border-2 border-emerald-500/50 relative">
+                                            <div class="absolute inset-0 rounded-full border-2 border-emerald-500 animate-ping opacity-30"></div>
+                                            <i class="fas fa-check text-2xl text-emerald-500"></i>
+                                        </div>
+                                        <h3 class="text-white font-bold text-lg mb-1">Alert Transmitted!</h3>
+                                        <p class="text-slate-400 text-xs mb-3">Received at NDRRMC Region VI OC</p>
+                                        
+                                        <div class="bg-slate-900 rounded-lg p-3 w-full border border-slate-800 mb-3 text-left">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-[10px] text-slate-500 uppercase font-bold">Transmission Log</span>
+                                                <span class="status-badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                                    <i class="fas fa-check text-[8px]"></i> Delivered
+                                                </span>
+                                            </div>
+                                            <div class="space-y-1 text-[10px] font-mono protocol-log">
+                                                <div class="flex justify-between">
+                                                    <span class="timestamp">12:00:02</span>
+                                                    <span class="event-sms">SMS_SENT</span>
+                                                    <span class="text-slate-500">→ ILOILO-GW</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span class="timestamp">12:00:04</span>
+                                                    <span class="event-ack">ACK_RECEIVED</span>
+                                                    <span class="text-slate-500">← GATEWAY</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span class="timestamp">12:00:05</span>
+                                                    <span class="event-ack">DISPATCHED</span>
+                                                    <span class="text-slate-500">← NDRRMC-VI</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="grid grid-cols-3 gap-2 w-full">
+                                            <div class="bg-slate-900 rounded-lg p-2 border border-slate-800 text-center">
+                                                <i class="fas fa-signal text-emerald-400 text-lg mb-1"></i>
+                                                <div class="text-[10px] text-slate-500">Signal</div>
+                                                <div class="text-xs font-bold text-white">-82dBm</div>
+                                            </div>
+                                            <div class="bg-slate-900 rounded-lg p-2 border border-slate-800 text-center">
+                                                <i class="fas fa-clock text-blue-400 text-lg mb-1"></i>
+                                                <div class="text-[10px] text-slate-500">Latency</div>
+                                                <div class="text-xs font-bold text-white">2.4s</div>
+                                            </div>
+                                            <div class="bg-slate-900 rounded-lg p-2 border border-slate-800 text-center">
+                                                <i class="fas fa-route text-cyan-400 text-lg mb-1"></i>
+                                                <div class="text-[10px] text-slate-500">Hops</div>
+                                                <div class="text-xs font-bold text-white">1</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="p-4 border-t border-slate-800">
+                                        <button onclick="resetDemo()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-sm transition flex items-center justify-center gap-2">
+                                            <i class="fas fa-redo"></i> Return to Monitor
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2 text-slate-400 bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700">
+                        <i class="fas fa-mobile-alt text-slate-400"></i>
+                        <span class="text-sm font-medium">Citizen Device</span>
+                        <span class="text-xs text-slate-600">|</span>
+                        <span class="text-xs text-emerald-400">Region VI</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center order-first xl:order-none">
+                    <div class="glass-card rounded-2xl p-5 w-full max-w-md">
+                        <h3 class="text-white font-bold text-base mb-4 flex items-center gap-2">
+                            <i class="fas fa-stream text-disaster-cyan"></i>
+                            Transmission Timeline
+                        </h3>
+                        
+                        <div class="space-y-3" id="timeline-container">
+                            <div class="timeline-item active" id="tl-1">
+                                <div class="text-xs text-slate-500 mb-1 font-mono">T+0.0s</div>
+                                <div class="text-sm text-white font-medium">SOS Triggered</div>
+                                <div class="text-xs text-slate-400">Device button activated</div>
+                            </div>
+                            <div class="timeline-item opacity-50" id="tl-2">
+                                <div class="text-xs text-slate-500 mb-1 font-mono">T+0.5s</div>
+                                <div class="text-sm text-slate-300 font-medium">GPS Lock Acquired</div>
+                                <div class="text-xs text-slate-500">Satellites: 8/8</div>
+                            </div>
+                            <div class="timeline-item opacity-50" id="tl-3">
+                                <div class="text-xs text-slate-500 mb-1 font-mono">T+1.2s</div>
+                                <div class="text-sm text-slate-300 font-medium">SMS Encoded</div>
+                                <div class="text-xs text-slate-500">160-char payload</div>
+                            </div>
+                            <div class="timeline-item opacity-50" id="tl-4">
+                                <div class="text-xs text-slate-500 mb-1 font-mono">T+2.4s</div>
+                                <div class="text-sm text-slate-300 font-medium">Gateway Received</div>
+                                <div class="text-xs text-slate-500">NDRRMC-VI-GW-01</div>
+                            </div>
+                            <div class="timeline-item opacity-50" id="tl-5">
+                                <div class="text-xs text-slate-500 mb-1 font-mono">T+3.1s</div>
+                                <div class="text-sm text-slate-300 font-medium">Dispatch Alert</div>
+                                <div class="text-xs text-slate-500">PDRRMO notified</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-t border-slate-700">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="bg-slate-900/50 rounded-lg p-2.5 text-center">
+                                    <div class="text-xl font-bold text-disaster-cyan stats-counter" id="response-timer">0.0s</div>
+                                    <div class="text-[10px] text-slate-500">Response Time</div>
+                                </div>
+                                <div class="bg-slate-900/50 rounded-lg p-2.5 text-center">
+                                    <div class="text-xl font-bold text-disaster-orange stats-counter" id="active-alerts">0</div>
+                                    <div class="text-[10px] text-slate-500">Active Alerts</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card rounded-2xl p-5 w-full max-w-md mt-4">
+                        <h4 class="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                            <i class="fas fa-code text-disaster-amber"></i>
+                            SMS Protocol Stack
+                        </h4>
+                        <div class="space-y-2 font-mono text-[10px]">
+                            <div class="flex items-center justify-between p-2 bg-slate-900 rounded border border-slate-800">
+                                <span class="text-slate-400">Application</span>
+                                <span class="text-disaster-red">SAFEALERT-VI-v1</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 bg-slate-900 rounded border border-slate-800">
+                                <span class="text-slate-400">Transport</span>
+                                <span class="text-disaster-cyan">GSM-PP/UCP</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 bg-slate-900 rounded border border-slate-800">
+                                <span class="text-slate-400">Gateway</span>
+                                <span class="text-emerald-400">ILOILO-GW-01</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 bg-slate-900 rounded border border-slate-800">
+                                <span class="text-slate-400">Physical</span>
+                                <span class="text-disaster-amber">GSM 900/1800</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card rounded-2xl p-5 w-full max-w-md mt-4">
+                        <h4 class="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                            <i class="fas fa-exclamation-triangle text-disaster-red"></i>
+                            Disaster Type Selection
+                        </h4>
+                        <div class="grid grid-cols-2 gap-2" id="disaster-types">
+                            <div class="disaster-type-card selected bg-slate-900/50 rounded-lg p-3 border border-slate-700 text-center" onclick="selectDisasterType('typhoon', this)">
+                                <i class="fas fa-hurricane text-disaster-orange text-xl mb-1"></i>
+                                <div class="text-xs text-white font-semibold">Typhoon</div>
+                                <div class="text-[10px] text-slate-500">Signal No. 3</div>
+                            </div>
+                            <div class="disaster-type-card bg-slate-900/50 rounded-lg p-3 border border-slate-700 text-center" onclick="selectDisasterType('flood', this)">
+                                <i class="fas fa-water text-blue-500 text-xl mb-1"></i>
+                                <div class="text-xs text-white font-semibold">Flood</div>
+                                <div class="text-[10px] text-slate-500">High Risk</div>
+                            </div>
+                            <div class="disaster-type-card bg-slate-900/50 rounded-lg p-3 border border-slate-700 text-center" onclick="selectDisasterType('earthquake', this)">
+                                <i class="fas fa-house-crack text-amber-500 text-xl mb-1"></i>
+                                <div class="text-xs text-white font-semibold">Earthquake</div>
+                                <div class="text-[10px] text-slate-500">Intensity VI</div>
+                            </div>
+                            <div class="disaster-type-card bg-slate-900/50 rounded-lg p-3 border border-slate-700 text-center" onclick="selectDisasterType('fire', this)">
+                                <i class="fas fa-fire text-red-500 text-xl mb-1"></i>
+                                <div class="text-xs text-white font-semibold">Fire</div>
+                                <div class="text-[10px] text-slate-500">Structural</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center">
+                    <div id="ndrrmc-device" class="relative w-[320px] h-[680px] bg-black rounded-[3rem] p-3 shadow-2xl border-4 border-slate-800 transition-all duration-300">
+                        <div class="phone-notch"></div>
+                        
+                        <div class="w-full h-full bg-slate-950 rounded-[2.5rem] overflow-hidden relative flex flex-col">
+                            <div class="h-12 w-full flex justify-between items-center px-6 pt-3 text-xs text-white font-medium z-20 bg-gradient-to-r from-blue-900 to-slate-900 border-b border-blue-500/30">
+                                <div class="flex items-center gap-2">
+                                    <i class="fas fa-shield-alt text-blue-400"></i>
+                                    <span class="text-blue-200 font-mono font-bold">NDRRMC-VI</span>
+                                </div>
+                                <span class="status-badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse mr-1"></span>
+                                    ACTIVE
+                                </span>
+                            </div>
+
+                            <div class="flex-1 relative overflow-hidden bg-slate-950">
+                                <div class="scanline"></div>
+                                
+                                <div id="ndrrmc-idle" class="absolute inset-0 flex flex-col p-4 z-10">
+                                    <div class="grid grid-cols-4 gap-2 mb-4">
+                                        <div class="bg-slate-900/80 rounded-lg p-2 text-center border border-slate-800">
+                                            <div class="text-lg font-bold text-white stats-counter" id="stat-pending">0</div>
+                                            <div class="text-[9px] text-slate-500">Pending</div>
+                                        </div>
+                                        <div class="bg-slate-900/80 rounded-lg p-2 text-center border border-slate-800">
+                                            <div class="text-lg font-bold text-emerald-400 stats-counter" id="stat-resolved">0</div>
+                                            <div class="text-[9px] text-slate-500">Resolved</div>
+                                        </div>
+                                        <div class="bg-slate-900/80 rounded-lg p-2 text-center border border-slate-800">
+                                            <div class="text-lg font-bold text-disaster-orange stats-counter">8</div>
+                                            <div class="text-[9px] text-slate-500">SAR Teams</div>
+                                        </div>
+                                        <div class="bg-slate-900/80 rounded-lg p-2 text-center border border-slate-800">
+                                            <div class="text-lg font-bold text-disaster-cyan stats-counter">97%</div>
+                                            <div class="text-[9px] text-slate-500">Gateway Up</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex-1 bg-slate-900/50 rounded-xl border border-slate-800 relative overflow-hidden mb-4">
+                                        <div id="idle-map" class="w-full h-full"></div>
+                                        <div class="absolute top-2 left-2 bg-slate-900/90 px-2 py-1 rounded border border-slate-700 z-[400]">
+                                            <div class="text-[10px] text-slate-400">Region VI Command Center</div>
+                                            <div class="text-xs text-emerald-400 font-bold">● LIVE TRACKING</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-slate-900/50 rounded-xl border border-slate-800 p-3">
+                                        <h4 class="text-slate-400 text-xs font-bold uppercase mb-2">Iloilo Gateway Status</h4>
+                                        <div class="space-y-1 text-[10px] font-mono protocol-log">
+                                            <div class="flex items-center gap-2">
+                                                <span class="timestamp">12:00:05</span>
+                                                <span class="event-ack">[GW-01]</span>
+                                                <span class="text-slate-500">Modem 1: Active</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="timestamp">12:00:02</span>
+                                                <span class="event-ack">[GW-01]</span>
+                                                <span class="text-slate-500">Modem 2: Standby</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="timestamp">11:58:34</span>
+                                                <span class="event-sms">[MESH]</span>
+                                                <span class="text-slate-500">Relay node: 12 active</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="ndrrmc-alert" class="absolute inset-0 z-20 hidden flex-col bg-slate-950">
+                                    <div class="bg-gradient-to-r from-red-600 to-red-800 p-3 flex items-center justify-between shadow-lg">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fas fa-exclamation-triangle text-white animate-bounce text-lg"></i>
+                                            <div>
+                                                <div class="text-white font-bold text-xs tracking-wider">PRIORITY ALERT</div>
+                                                <div class="text-red-200 text-[10px] font-mono" id="alert-timestamp">T+0.0s</div>
+                                            </div>
+                                        </div>
+                                        <span class="px-2 py-1 rounded bg-red-900/50 text-red-100 text-[10px] font-bold border border-red-500/30 animate-pulse">
+                                            LIVE
+                                        </span>
+                                    </div>
+
+                                    <div class="flex-1 overflow-y-auto p-3 space-y-3">
+                                        <div class="bg-slate-900/80 rounded-xl p-3 border border-red-500/30 alert-priority-high">
+                                            <div class="flex items-start justify-between mb-2">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                                                        <i class="fas fa-user-injured text-red-400 text-xs"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-white font-bold text-sm" id="alert-victim-name">Unknown</div>
+                                                        <div class="text-[10px] text-slate-400" id="alert-victim-id">ID: ---</div>
+                                                    </div>
+                                                </div>
+                                                <span class="status-badge bg-red-500/20 text-red-400 border border-red-500/30" id="alert-severity">
+                                                    CRITICAL
+                                                </span>
+                                            </div>
+
+                                            <div class="grid grid-cols-2 gap-2 mb-2 text-[10px]">
+                                                <div class="bg-slate-800/50 rounded p-1.5">
+                                                    <span class="text-slate-500">Location:</span>
+                                                    <span class="text-white block truncate" id="alert-location">---</span>
+                                                </div>
+                                                <div class="bg-slate-800/50 rounded p-1.5">
+                                                    <span class="text-slate-500">Blood Type:</span>
+                                                    <span class="text-disaster-red font-bold" id="alert-blood">---</span>
+                                                </div>
+                                                <div class="bg-slate-800/50 rounded p-1.5">
+                                                    <span class="text-slate-500">Disaster:</span>
+                                                    <span class="text-disaster-orange" id="alert-disaster-type">---</span>
+                                                </div>
+                                                <div class="bg-slate-800/50 rounded p-1.5">
+                                                    <span class="text-slate-500">Network:</span>
+                                                    <span class="text-emerald-400" id="alert-network">GSM</span>
+                                                </div>
+                                            </div>
+
+                                            <div class="bg-black/40 rounded p-2 font-mono text-[9px] text-slate-400 mb-2" id="alert-coordinates">
+                                                LAT: 10.7202° N | LON: 122.5621° E
+                                            </div>
+
+                                            <div class="flex gap-2">
+                                                <button onclick="dispatchTeam()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 rounded text-[10px] font-bold transition flex items-center justify-center gap-1">
+                                                    <i class="fas fa-helicopter"></i> Dispatch SAR
+                                                </button>
+                                                <button onclick="markResolved()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-1.5 rounded text-[10px] font-bold transition">
+                                                    Mark Resolved
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden">
+                                            <div class="bg-slate-800/50 px-3 py-2 border-b border-slate-700 flex items-center justify-between">
+                                                <span class="text-xs text-white font-bold">Live Location</span>
+                                                <span class="text-[10px] text-emerald-400 flex items-center gap-1">
+                                                    <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+                                                    Tracking
+                                                </span>
+                                            </div>
+                                            <div class="h-40 bg-slate-950 relative" id="mini-map"></div>
+                                        </div>
+
+                                        <div class="bg-slate-900/50 rounded-xl border border-slate-800 p-3">
+                                            <h4 class="text-white font-bold text-xs mb-2 flex items-center gap-2">
+                                                <i class="fas fa-ambulance text-disaster-cyan"></i>
+                                                Available Responders
+                                            </h4>
+                                            <div class="space-y-2" id="responder-list">
+                                                <div class="responder-unit bg-slate-800/30 rounded-lg p-2 border-l-2 border-slate-600 flex items-center justify-between">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center">
+                                                            <i class="fas fa-helicopter text-blue-400 text-[10px]"></i>
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-white text-[10px] font-semibold">SAR-Alpha</div>
+                                                            <div class="text-[9px] text-slate-500">Iloilo City - 2.3km</div>
+                                                        </div>
+                                                    </div>
+                                                    <span class="text-[9px] text-emerald-400 font-mono">READY</span>
+                                                </div>
+                                                <div class="responder-unit bg-slate-800/30 rounded-lg p-2 border-l-2 border-slate-600 flex items-center justify-between">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center">
+                                                            <i class="fas fa-truck-medical text-amber-400 text-[10px]"></i>
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-white text-[10px] font-semibold">MED-Echo</div>
+                                                            <div class="text-[9px] text-slate-500">Molo District - 4.1km</div>
+                                                        </div>
+                                                    </div>
+                                                    <span class="text-[9px] text-emerald-400 font-mono">READY</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="bg-slate-900/50 rounded-xl border border-slate-800 p-3">
+                                            <h4 class="text-white font-bold text-xs mb-2">Victim Medical Profile</h4>
+                                            <div class="space-y-1 text-[10px] text-slate-400">
+                                                <div class="flex justify-between">
+                                                    <span>Allergies:</span>
+                                                    <span class="text-white" id="alert-allergies">None reported</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span>Conditions:</span>
+                                                    <span class="text-white" id="alert-conditions">None</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span>Emergency Contact:</span>
+                                                    <span class="text-white" id="alert-ec">---</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="p-3 border-t border-slate-800 bg-slate-900/80">
+                                        <button onclick="backToIdle()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition">
+                                            <i class="fas fa-arrow-left mr-2"></i> Back to Monitor
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="ndrrmc-mesh" class="absolute inset-0 z-20 hidden flex-col bg-slate-950">
+                                    <div class="bg-gradient-to-r from-cyan-600 to-cyan-800 p-3 flex items-center justify-between shadow-lg">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fas fa-network-wired text-white text-lg"></i>
+                                            <div>
+                                                <div class="text-white font-bold text-xs tracking-wider">MESH NETWORK</div>
+                                                <div class="text-cyan-200 text-[10px] font-mono">Relay Visualization</div>
+                                            </div>
+                                        </div>
+                                        <span class="px-2 py-1 rounded bg-cyan-900/50 text-cyan-100 text-[10px] font-bold border border-cyan-500/30">
+                                            ACTIVE
+                                        </span>
+                                    </div>
+
+                                    <div class="flex-1 relative bg-slate-950 overflow-hidden" id="mesh-visualization">
+                                        <div class="absolute inset-0" id="mesh-nodes-container">
+                                        </div>
+                                        <div class="absolute bottom-4 left-4 right-4 bg-slate-900/90 rounded-lg p-3 border border-cyan-500/30">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-white text-xs font-bold">Network Topology</span>
+                                                <span class="text-[10px] text-cyan-400" id="mesh-hops">0 hops</span>
+                                            </div>
+                                            <div class="space-y-1 text-[10px] font-mono">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                                    <span class="text-slate-400">Source Device</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+                                                    <span class="text-slate-400">Relay Nodes</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-2 h-2 rounded-full bg-cyan-500"></div>
+                                                    <span class="text-slate-400">Gateway</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="p-3 border-t border-slate-800 bg-slate-900/80">
+                                        <button onclick="backToIdle()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition">
+                                            <i class="fas fa-arrow-left mr-2"></i> Back to Monitor
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2 text-slate-400 bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700">
+                        <i class="fas fa-shield-alt text-blue-400"></i>
+                        <span class="text-sm font-medium">NDRRMC Command</span>
+                        <span class="text-xs text-slate-600">|</span>
+                        <span class="text-xs text-emerald-400">Iloilo OC</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section id="analytics" class="py-20 bg-slate-950 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Regional Analytics Dashboard</h2>
+                <p class="text-slate-400">Real-time monitoring of SafeAlert PH system performance across Western Visayas</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6 mb-8">
+                <div class="glass-card rounded-2xl p-6">
+                    <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                        <i class="fas fa-chart-line text-disaster-cyan"></i>
+                        Alert Volume by Province
+                    </h3>
+                    <canvas id="provinceChart" height="200"></canvas>
+                </div>
+                <div class="glass-card rounded-2xl p-6">
+                    <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                        <i class="fas fa-clock text-disaster-orange"></i>
+                        Response Time Trends
+                    </h3>
+                    <canvas id="responseChart" height="200"></canvas>
+                </div>
+                <div class="glass-card rounded-2xl p-6">
+                    <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                        <i class="fas fa-broadcast-tower text-emerald-400"></i>
+                        Network Reliability
+                    </h3>
+                    <canvas id="networkChart" height="200"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-white font-bold text-lg">Recent Alert History</h3>
+                    <div class="flex gap-2">
+                        <button onclick="exportHistory()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-2">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                        <button onclick="refreshHistory()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-2">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <button onclick="filterHistory('all')" class="filter-btn active px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition" data-filter="all">
+                        All Alerts
+                    </button>
+                    <button onclick="filterHistory('critical')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition" data-filter="critical">
+                        Critical
+                    </button>
+                    <button onclick="filterHistory('high')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition" data-filter="high">
+                        High
+                    </button>
+                    <button onclick="filterHistory('medium')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition" data-filter="medium">
+                        Medium
+                    </button>
+                    <button onclick="filterHistory('resolved')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition" data-filter="resolved">
+                        Resolved
+                    </button>
+                    <button onclick="filterHistory('pending')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition" data-filter="pending">
+                        Pending
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-900/50">
+                            <tr>
+                                <th class="px-4 py-3 rounded-l-lg cursor-pointer hover:text-white transition" onclick="sortHistory('time')">
+                                    Time <i class="fas fa-sort ml-1"></i>
+                                </th>
+                                <th class="px-4 py-3 cursor-pointer hover:text-white transition" onclick="sortHistory('id')">
+                                    ID <i class="fas fa-sort ml-1"></i>
+                                </th>
+                                <th class="px-4 py-3 cursor-pointer hover:text-white transition" onclick="sortHistory('province')">
+                                    Province <i class="fas fa-sort ml-1"></i>
+                                </th>
+                                <th class="px-4 py-3 cursor-pointer hover:text-white transition" onclick="sortHistory('type')">
+                                    Type <i class="fas fa-sort ml-1"></i>
+                                </th>
+                                <th class="px-4 py-3 cursor-pointer hover:text-white transition" onclick="sortHistory('severity')">
+                                    Severity <i class="fas fa-sort ml-1"></i>
+                                </th>
+                                <th class="px-4 py-3 cursor-pointer hover:text-white transition" onclick="sortHistory('status')">
+                                    Status <i class="fas fa-sort ml-1"></i>
+                                </th>
+                                <th class="px-4 py-3 rounded-r-lg">Response</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alert-history">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 flex items-center justify-between text-xs text-slate-500">
+                    <span id="showing-text">Showing 10 of 50 alerts</span>
+                    <div class="flex gap-2">
+                        <button onclick="changePage(-1)" class="px-3 py-1 bg-slate-800 rounded hover:bg-slate-700 transition">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <span id="page-indicator" class="px-3 py-1">Page 1</span>
+                        <button onclick="changePage(1)" class="px-3 py-1 bg-slate-800 rounded hover:bg-slate-700 transition">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="alert-detail-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <div class="glass-card rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                    <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-white font-bold text-lg" id="modal-title">Alert Details</h3>
+                            <p class="text-slate-400 text-sm" id="modal-subtitle">ID: SA-892</p>
+                        </div>
+                        <button onclick="closeDetailModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                                <div class="text-xs text-slate-500 mb-1">Victim Name</div>
+                                <div class="text-white font-semibold" id="modal-victim">---</div>
+                            </div>
+                            <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                                <div class="text-xs text-slate-500 mb-1">Contact</div>
+                                <div class="text-white font-semibold" id="modal-contact">---</div>
+                            </div>
+                            <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                                <div class="text-xs text-slate-500 mb-1">Location</div>
+                                <div class="text-white font-semibold" id="modal-location">---</div>
+                            </div>
+                            <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                                <div class="text-xs text-slate-500 mb-1">Coordinates</div>
+                                <div class="text-white font-mono text-xs" id="modal-coords">---</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                            <div class="text-xs text-slate-500 mb-2">Message Thread</div>
+                            <div class="space-y-2" id="modal-messages">
+                                <div class="chat-bubble received">
+                                    <div class="text-[10px] text-slate-400 mb-1">NDRRMC-VI System</div>
+                                    <div class="text-xs text-white">Alert received and acknowledged. SAR team dispatched.</div>
+                                    <div class="text-[10px] text-slate-500 mt-1 text-right">12:00:05</div>
+                                </div>
+                                <div class="chat-bubble sent">
+                                    <div class="text-[10px] text-slate-400 mb-1">Victim (SA-892)</div>
+                                    <div class="text-xs text-white">SAFEALERT|SA-892|10.72N|122.56E|TYPHOON|CRITICAL</div>
+                                    <div class="text-[10px] text-slate-500 mt-1 text-right">12:00:02</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                            <div class="text-xs text-slate-500 mb-2">Responder Assignment</div>
+                            <div id="modal-responder" class="flex items-center gap-3 p-2 bg-slate-800/50 rounded">
+                                <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                                    <i class="fas fa-helicopter text-emerald-400"></i>
+                                </div>
+                                <div>
+                                    <div class="text-white text-sm font-semibold">SAR-Alpha Team</div>
+                                    <div class="text-xs text-slate-400">Dispatched at 12:00:08 • ETA 8 min</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <button onclick="dispatchFromModal()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
+                                <i class="fas fa-helicopter"></i> Dispatch Team
+                            </button>
+                            <button onclick="resolveFromModal()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
+                                <i class="fas fa-check"></i> Mark Resolved
+                            </button>
+                            <button onclick="escalateFromModal()" class="px-4 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-semibold text-sm transition">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="weather" class="py-20 bg-slate-900 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Regional Weather Monitoring</h2>
+                <p class="text-slate-400">Integrated PAGASA alerts and local weather stations</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="glass-card rounded-2xl p-6 weather-alert">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center border border-amber-500/30">
+                                <i class="fas fa-hurricane text-amber-500 text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-white font-bold">Typhoon Warning</h3>
+                                <p class="text-amber-400 text-xs">Signal No. 3 - Active</p>
+                            </div>
+                        </div>
+                        <span class="animate-pulse w-3 h-3 bg-amber-500 rounded-full"></span>
+                    </div>
+                    <div class="space-y-2 text-sm text-slate-300">
+                        <div class="flex justify-between">
+                            <span>Wind Speed:</span>
+                            <span class="text-white font-semibold">100-185 km/h</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Impact Area:</span>
+                            <span class="text-white font-semibold">Northern Iloilo</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Duration:</span>
+                            <span class="text-white font-semibold">18-24 hours</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 p-3 bg-amber-950/30 rounded-lg border border-amber-500/20">
+                        <p class="text-xs text-amber-200">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                            Immediate evacuation advised for coastal barangays.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-6">
+                    <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                        <i class="fas fa-cloud-rain text-blue-400"></i>
+                        Rainfall Forecast
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-2 bg-slate-800/50 rounded">
+                            <span class="text-slate-400 text-sm">Next 3 Hours</span>
+                            <span class="text-blue-400 font-bold">Heavy (45mm)</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2 bg-slate-800/50 rounded">
+                            <span class="text-slate-400 text-sm">Next 6 Hours</span>
+                            <span class="text-blue-300 font-bold">Moderate (25mm)</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2 bg-slate-800/50 rounded">
+                            <span class="text-slate-400 text-sm">Next 12 Hours</span>
+                            <span class="text-slate-300 font-bold">Light (10mm)</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 h-24 bg-slate-800/30 rounded-lg flex items-end justify-around p-2">
+                        <div class="w-4 bg-blue-500/60 rounded-t" style="height: 80%"></div>
+                        <div class="w-4 bg-blue-500/60 rounded-t" style="height: 60%"></div>
+                        <div class="w-4 bg-blue-500/60 rounded-t" style="height: 40%"></div>
+                        <div class="w-4 bg-blue-500/60 rounded-t" style="height: 30%"></div>
+                        <div class="w-4 bg-blue-500/60 rounded-t" style="height: 20%"></div>
+                        <div class="w-4 bg-blue-500/60 rounded-t" style="height: 15%"></div>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-6">
+                    <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                        <i class="fas fa-water text-cyan-400"></i>
+                        Flood Monitoring
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="p-3 bg-red-950/30 rounded-lg border border-red-500/30">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-white text-sm font-semibold">Jaro River</span>
+                                <span class="text-red-400 text-xs font-bold">CRITICAL</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2">
+                                <div class="bg-red-500 h-2 rounded-full" style="width: 95%"></div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-1">95% capacity • +0.8m above normal</div>
+                        </div>
+                        <div class="p-3 bg-amber-950/30 rounded-lg border border-amber-500/30">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-white text-sm font-semibold">Iloilo River</span>
+                                <span class="text-amber-400 text-xs font-bold">WARNING</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2">
+                                <div class="bg-amber-500 h-2 rounded-full" style="width: 75%"></div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-1">75% capacity • +0.3m above normal</div>
+                        </div>
+                        <div class="p-3 bg-emerald-950/30 rounded-lg border border-emerald-500/30">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-white text-sm font-semibold">Batiano River</span>
+                                <span class="text-emerald-400 text-xs font-bold">NORMAL</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2">
+                                <div class="bg-emerald-500 h-2 rounded-full" style="width: 45%"></div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-1">45% capacity • Normal levels</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-slate-950 border-t border-slate-800 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-8 h-8 bg-gradient-to-br from-disaster-red to-disaster-orange rounded-lg flex items-center justify-center">
+                            <i class="fas fa-satellite-dish text-white text-sm"></i>
+                        </div>
+                        <span class="font-bold text-white">SafeAlert PH</span>
+                    </div>
+                    <p class="text-slate-500 text-sm">
+                        Emergency SMS lifeline for Western Visayas Region VI. 
+                        Operated in partnership with NDRRMC and local PDRRMOs.
+                    </p>
+                </div>
+                <div>
+                    <h4 class="text-white font-bold mb-4">Quick Links</h4>
+                    <ul class="space-y-2 text-sm text-slate-400">
+                        <li><a href="#" class="hover:text-white transition">NDRRMC VI Portal</a></li>
+                        <li><a href="#" class="hover:text-white transition">PDRRMO Contacts</a></li>
+                        <li><a href="#" class="hover:text-white transition">Evacuation Centers</a></li>
+                        <li><a href="#" class="hover:text-white transition">Weather Updates</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-white font-bold mb-4">Emergency Contacts</h4>
+                    <ul class="space-y-2 text-sm text-slate-400">
+                        <li class="flex items-center gap-2">
+                            <i class="fas fa-phone text-disaster-red"></i>
+                            <span>911 - National</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fas fa-phone text-disaster-red"></i>
+                            <span>143 - Red Cross</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fas fa-phone text-disaster-red"></i>
+                            <span>(033) 337-XXXX - Iloilo OC</span>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-white font-bold mb-4">Connect</h4>
+                    <div class="flex gap-3">
+                        <a href="#" class="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition">
+                            <i class="fas fa-envelope"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-slate-800 mt-8 pt-8 text-center text-slate-600 text-sm">
+                <p>&copy; 2024 SafeAlert PH. All rights reserved. | NDRRMC Region VI Certified</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let currentUser = null;
+        let networkMode = 'sms';
+        let currentDisasterType = 'typhoon';
+        let activeAlerts = 0;
+        let resolvedAlerts = 0;
+        let responseStartTime = null;
+        let meshNodes = [];
+        let alertHistory = [];
+        let idleMap = null;
+        let miniMap = null;
+        let currentAlertMarker = null;
+        let gatewayMarker = null;
+        let meshLines = [];
+        let meshMarkers = [];
+        let currentPage = 1;
+        let itemsPerPage = 10;
+        let currentFilter = 'all';
+        let sortColumn = 'time';
+        let sortDirection = 'desc';
+        let selectedAlertId = null;
+
+        const provinces = ['Iloilo', 'Capiz', 'Aklan', 'Antique', 'Negros Occidental', 'Guimaras'];
+        const disasterTypes = ['Typhoon', 'Flood', 'Earthquake', 'Fire', 'Landslide', 'Medical'];
+        const severityLevels = ['Critical', 'High', 'Medium', 'Low'];
+        const statuses = ['Pending', 'Dispatched', 'Resolved', 'Cancelled'];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateClock();
+            setInterval(updateClock, 1000);
+            initCharts();
+            initIdleMap();
+            generateMockHistory();
+            renderHistory();
+        });
+
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('clock-citizen').textContent = timeString;
+        }
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        function scrollToDemo() {
+            document.getElementById('demo').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function setNetworkMode(mode) {
+            networkMode = mode;
+            const banner = document.getElementById('network-banner');
+            const text = document.getElementById('network-text');
+            const display = document.getElementById('current-mode-display');
+            const btns = document.querySelectorAll('.network-mode-btn');
+            
+            btns.forEach(btn => {
+                if(btn.dataset.mode === mode) {
+                    btn.classList.add('bg-disaster-red/20', 'border-disaster-red', 'text-disaster-red');
+                    btn.classList.remove('bg-slate-800', 'border-slate-700', 'text-slate-400');
+                } else {
+                    btn.classList.remove('bg-disaster-red/20', 'border-disaster-red', 'text-disaster-red');
+                    btn.classList.add('bg-slate-800', 'border-slate-700', 'text-slate-400');
+                }
+            });
+
+            if(mode === 'sms') {
+                banner.className = 'px-4 py-2 text-center text-white text-xs font-bold z-30 mode-sms flex items-center justify-center gap-2';
+                text.textContent = 'GSM SMS MODE';
+                display.textContent = 'GSM SMS';
+                display.className = 'text-disaster-red font-semibold';
+            } else {
+                banner.className = 'px-4 py-2 text-center text-white text-xs font-bold z-30 mode-mesh flex items-center justify-center gap-2';
+                text.textContent = 'MESH NETWORK MODE';
+                display.textContent = 'MESH NETWORK';
+                display.className = 'text-disaster-cyan font-semibold';
+            }
+        }
+
+        function selectDisasterType(type, element) {
+            currentDisasterType = type;
+            document.querySelectorAll('.disaster-type-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            element.classList.add('selected');
+
+            const icon = document.getElementById('disaster-icon');
+            const title = document.getElementById('disaster-title');
+            const desc = document.getElementById('disaster-desc');
+
+            const disasterConfig = {
+                typhoon: { icon: 'fa-hurricane', color: 'text-disaster-orange', title: 'Typhoon Warning', desc: 'Signal No. 3 - Western Visayas' },
+                flood: { icon: 'fa-water', color: 'text-blue-500', title: 'Flood Alert', desc: 'High Risk - Evacuate Low Areas' },
+                earthquake: { icon: 'fa-house-crack', color: 'text-amber-500', title: 'Earthquake', desc: 'Intensity VI - Check Structure' },
+                fire: { icon: 'fa-fire', color: 'text-red-500', title: 'Fire Emergency', desc: 'Structural Fire - Immediate Response' }
+            };
+
+            const config = disasterConfig[type];
+            icon.className = `fas ${config.icon} text-3xl ${config.color} animate-pulse`;
+            title.textContent = config.title;
+            desc.textContent = config.desc;
+        }
+
+        function updateDisasterContext() {
+            const province = document.getElementById('reg-province').value;
+        }
+
+        function submitRegistration() {
+            const fullname = document.getElementById('reg-fullname').value;
+            const phone = document.getElementById('reg-phone').value;
+            const province = document.getElementById('reg-province').value;
+            const blood = document.getElementById('reg-bloodtype').value;
+            const consent = document.getElementById('reg-consent').checked;
+
+            if(!fullname || !phone || !province || !consent) {
+                showToast('Please fill in all required fields and accept consent');
+                return;
+            }
+
+            const userId = 'SA-' + Math.floor(100 + Math.random() * 900);
+            currentUser = {
+                id: userId,
+                name: fullname,
+                phone: phone,
+                province: province,
+                blood: blood || 'Unknown',
+                medical: document.getElementById('reg-medical').value || 'None',
+                ecName: document.getElementById('reg-ec-name').value,
+                ecPhone: document.getElementById('reg-ec-phone').value,
+                address: document.getElementById('reg-address').value
+            };
+
+            document.getElementById('display-name').textContent = fullname;
+            document.getElementById('display-id').textContent = 'ID: ' + userId;
+            document.getElementById('display-province').textContent = province;
+            document.getElementById('display-blood').textContent = blood || '---';
+            document.getElementById('display-avatar').textContent = fullname.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+
+            document.getElementById('view-register').classList.add('hidden');
+            document.getElementById('view-home').classList.remove('hidden');
+
+            showToast('Registration successful! SafeAlert activated.');
+        }
+
+        function showRegistration() {
+            document.getElementById('view-home').classList.add('hidden');
+            document.getElementById('view-register').classList.remove('hidden');
+        }
+
+        function triggerSOS() {
+            if(!currentUser) {
+                showToast('Please complete registration first');
+                return;
+            }
+
+            responseStartTime = Date.now();
+            
+            document.getElementById('view-home').classList.add('hidden');
+            document.getElementById('view-sending').classList.remove('hidden');
+            document.getElementById('view-sending').classList.add('flex');
+
+            resetTransmissionProgress();
+
+            setTimeout(() => updateProgress(1, 'GPS Lock', 'Acquiring satellite signal...'), 500);
+            setTimeout(() => updateProgress(2, 'Encode Payload', 'Compressing data...'), 1500);
+            
+            if(networkMode === 'mesh') {
+                setTimeout(() => {
+                    updateProgress(3, 'Mesh Broadcast', 'Searching for relay nodes...');
+                    showMeshVisualization();
+                }, 2500);
+                setTimeout(() => completeTransmission(), 4500);
+            } else {
+                setTimeout(() => {
+                    updateProgress(3, 'SMS Transmit', 'Sending to ILOILO-GW...');
+                    document.getElementById('sms-payload-preview').classList.remove('hidden');
+                }, 2500);
+                setTimeout(() => completeTransmission(), 3500);
+            }
+        }
+
+        function resetTransmissionProgress() {
+            [1, 2, 3].forEach(i => {
+                document.getElementById(`step-${i}`).className = 'w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[8px] transition-all';
+                document.getElementById(`bar-${i}`).style.width = '0%';
+            });
+            document.getElementById('sms-payload-preview').classList.add('hidden');
+        }
+
+        function updateProgress(step, phase, detail) {
+            document.getElementById('sending-phase').textContent = phase;
+            document.getElementById('sending-detail').textContent = detail;
+            document.getElementById(`step-${step}`).classList.add('bg-emerald-500', 'text-white');
+            document.getElementById(`bar-${step}`).style.width = '100%';
+        }
+
+        function showMeshVisualization() {
+            document.getElementById('ndrrmc-idle').classList.add('hidden');
+            document.getElementById('ndrrmc-mesh').classList.remove('hidden');
+            document.getElementById('ndrrmc-mesh').classList.add('flex');
+            
+            generateMeshNodes();
+        }
+
+        function generateMeshNodes() {
+            const container = document.getElementById('mesh-nodes-container');
+            container.innerHTML = '';
+            meshNodes = [];
+
+            const sourceNode = createMeshNode(20, 50, 'source', 'SA-' + currentUser.id.split('-')[1]);
+            container.appendChild(sourceNode);
+
+            const hopCount = Math.floor(Math.random() * 3) + 2;
+            document.getElementById('mesh-hops').textContent = hopCount + ' hops';
+            
+            for(let i = 0; i < hopCount; i++) {
+                const x = 35 + (i * 15);
+                const y = 30 + Math.random() * 40;
+                const node = createMeshNode(x, y, 'relay', 'R' + (i + 1));
+                container.appendChild(node);
+                
+                const prevNode = i === 0 ? sourceNode : meshNodes[i - 1];
+                const line = createMeshConnection(prevNode, node, i);
+                container.appendChild(line);
+                
+                meshNodes.push(node);
+                
+                setTimeout(() => {
+                    node.classList.add('active');
+                    line.classList.add('active');
+                }, i * 400);
+            }
+
+            const gatewayNode = createMeshNode(85, 50, 'gateway', 'ILOILO-GW');
+            container.appendChild(gatewayNode);
+            
+            const lastRelay = meshNodes[meshNodes.length - 1];
+            const finalLine = createMeshConnection(lastRelay, gatewayNode, hopCount);
+            container.appendChild(finalLine);
+            
+            setTimeout(() => {
+                gatewayNode.classList.add('active');
+                finalLine.classList.add('active');
+            }, hopCount * 400);
+        }
+
+        function createMeshNode(x, y, type, label) {
+            const node = document.createElement('div');
+            node.className = `mesh-node ${type}`;
+            node.style.left = x + '%';
+            node.style.top = y + '%';
+            
+            const labelEl = document.createElement('div');
+            labelEl.className = 'absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-[8px] text-slate-400 whitespace-nowrap';
+            labelEl.textContent = label;
+            node.appendChild(labelEl);
+            
+            return node;
+        }
+
+        function createMeshConnection(node1, node2, index) {
+            const line = document.createElement('div');
+            line.className = 'mesh-connection';
+            
+            const rect1 = node1.getBoundingClientRect();
+            const rect2 = node2.getBoundingClientRect();
+            const container = document.getElementById('mesh-nodes-container').getBoundingClientRect();
+            
+            const x1 = rect1.left - container.left + rect1.width / 2;
+            const y1 = rect1.top - container.top + rect1.height / 2;
+            const x2 = rect2.left - container.left + rect2.width / 2;
+            const y2 = rect2.top - container.top + rect2.height / 2;
+            
+            const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+            
+            line.style.width = length + 'px';
+            line.style.left = x1 + 'px';
+            line.style.top = y1 + 'px';
+            line.style.transform = `rotate(${angle}deg)`;
+            
+            return line;
+        }
+
+        function completeTransmission() {
+            document.getElementById('view-sending').classList.add('hidden');
+            document.getElementById('view-sending').classList.remove('flex');
+            document.getElementById('view-sent').classList.remove('hidden');
+            document.getElementById('view-sent').classList.add('flex');
+
+            const alertData = {
+                id: currentUser.id,
+                name: currentUser.name,
+                province: currentUser.province,
+                type: currentDisasterType.charAt(0).toUpperCase() + currentDisasterType.slice(1),
+                severity: 'Critical',
+                status: 'Pending',
+                time: new Date().toLocaleTimeString('en-PH', { hour12: false }),
+                responseTime: '2.4s',
+                coordinates: { lat: 10.7202 + (Math.random() - 0.5) * 0.02, lng: 122.5621 + (Math.random() - 0.5) * 0.02 },
+                network: networkMode.toUpperCase(),
+                blood: currentUser.blood,
+                medical: currentUser.medical,
+                ecName: currentUser.ecName,
+                ecPhone: currentUser.ecPhone
+            };
+            
+            addToHistory(alertData);
+
+            setTimeout(() => {
+                showNDRRMCAlert(alertData);
+            }, 500);
+
+            activeAlerts++;
+            document.getElementById('active-alerts').textContent = activeAlerts;
+            document.getElementById('stat-pending').textContent = activeAlerts;
+        }
+
+        function showNDRRMCAlert(alertData) {
+            document.getElementById('ndrrmc-idle').classList.add('hidden');
+            document.getElementById('ndrrmc-mesh').classList.add('hidden');
+            document.getElementById('ndrrmc-mesh').classList.remove('flex');
+            document.getElementById('ndrrmc-alert').classList.remove('hidden');
+            document.getElementById('ndrrmc-alert').classList.add('flex');
+
+            document.getElementById('alert-victim-name').textContent = alertData.name;
+            document.getElementById('alert-victim-id').textContent = 'ID: ' + alertData.id;
+            document.getElementById('alert-location').textContent = alertData.province;
+            document.getElementById('alert-blood').textContent = alertData.blood;
+            document.getElementById('alert-disaster-type').textContent = alertData.type.toUpperCase();
+            document.getElementById('alert-network').textContent = alertData.network;
+            document.getElementById('alert-allergies').textContent = alertData.medical || 'None reported';
+            document.getElementById('alert-ec').textContent = alertData.ecName || '---';
+
+            const elapsed = ((Date.now() - responseStartTime) / 1000).toFixed(1);
+            document.getElementById('alert-timestamp').textContent = 'T+' + elapsed + 's';
+            document.getElementById('response-timer').textContent = elapsed + 's';
+
+            updateTimeline();
+            
+            setTimeout(() => {
+                initMiniMap(alertData.coordinates);
+            }, 100);
+        }
+
+        function updateTimeline() {
+            const items = document.querySelectorAll('.timeline-item');
+            items.forEach((item, index) => {
+                setTimeout(() => {
+                    item.classList.remove('opacity-50');
+                    item.classList.add('active');
+                }, index * 300);
+            });
+        }
+
+        function dispatchTeam() {
+            const units = document.querySelectorAll('.responder-unit');
+            units.forEach((unit, index) => {
+                setTimeout(() => {
+                    unit.classList.add('dispatched');
+                    unit.querySelector('.text-emerald-400').textContent = 'DISPATCHED';
+                }, index * 200);
+            });
+            
+            showToast('SAR teams dispatched to location');
+            
+            setTimeout(() => {
+                markResolved();
+            }, 3000);
+        }
+
+        function markResolved() {
+            activeAlerts--;
+            resolvedAlerts++;
+            document.getElementById('active-alerts').textContent = activeAlerts;
+            document.getElementById('stat-pending').textContent = activeAlerts;
+            document.getElementById('stat-resolved').textContent = resolvedAlerts;
+            
+            showToast('Alert marked as resolved');
+            backToIdle();
+        }
+
+        function backToIdle() {
+            document.getElementById('ndrrmc-alert').classList.add('hidden');
+            document.getElementById('ndrrmc-alert').classList.remove('flex');
+            document.getElementById('ndrrmc-mesh').classList.add('hidden');
+            document.getElementById('ndrrmc-mesh').classList.remove('flex');
+            document.getElementById('ndrrmc-idle').classList.remove('hidden');
+            
+            if(miniMap) {
+                miniMap.remove();
+                miniMap = null;
+            }
+        }
+
+        function resetDemo() {
+            document.getElementById('view-sent').classList.add('hidden');
+            document.getElementById('view-sent').classList.remove('flex');
+            document.getElementById('view-home').classList.remove('hidden');
+            
+            document.querySelectorAll('.timeline-item').forEach(item => {
+                item.classList.add('opacity-50');
+                item.classList.remove('active');
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function initIdleMap() {
+            const mapContainer = document.getElementById('idle-map');
+            if(!mapContainer) return;
+            
+            setTimeout(() => {
+                if(idleMap) {
+                    idleMap.remove();
+                }
+                
+                idleMap = L.map('idle-map', {
+                    zoomControl: false,
+                    attributionControl: false
+                }).setView([10.7202, 122.5621], 11);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    maxZoom: 19
+                }).addTo(idleMap);
+                
+                const gatewayIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: "<div style='background-color:#10b981;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px #10b981;'></div>",
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                });
+                
+                gatewayMarker = L.marker([10.7202, 122.5621], {icon: gatewayIcon})
+                    .addTo(idleMap)
+                    .bindPopup('<b>NDRRMC-VI Gateway</b><br>Iloilo City Operations Center');
+                
+                const relayLocations = [
+                    [10.7302, 122.5721],
+                    [10.7102, 122.5521],
+                    [10.7402, 122.5421],
+                    [10.7002, 122.5821]
+                ];
+                
+                relayLocations.forEach((loc, idx) => {
+                    const relayIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div style='background-color:#06b6d4;width:8px;height:8px;border-radius:50%;border:1px solid #fff;opacity:0.7;'></div>",
+                        iconSize: [8, 8],
+                        iconAnchor: [4, 4]
+                    });
+                    
+                    L.marker(loc, {icon: relayIcon})
+                        .addTo(idleMap)
+                        .bindPopup('Mesh Node ' + (idx + 1));
+                });
+                
+                L.circle([10.7202, 122.5621], {
+                    color: '#10b981',
+                    fillColor: '#10b981',
+                    fillOpacity: 0.1,
+                    radius: 5000
+                }).addTo(idleMap);
+                
+            }, 500);
+        }
+
+        function initMiniMap(coords) {
+            const mapContainer = document.getElementById('mini-map');
+            if(!mapContainer) return;
+            
+            if(miniMap) {
+                miniMap.remove();
+            }
+            
+            const victimLat = coords ? coords.lat : 10.7202 + (Math.random() - 0.5) * 0.02;
+            const victimLng = coords ? coords.lng : 122.5621 + (Math.random() - 0.5) * 0.02;
+            
+            miniMap = L.map('mini-map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([victimLat, victimLng], 14);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(miniMap);
+            
+            const victimIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: "<div style='background-color:#dc2626;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 20px #dc2626;animation:pulse 1.5s infinite;'></div>",
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+            
+            currentAlertMarker = L.marker([victimLat, victimLng], {icon: victimIcon})
+                .addTo(miniMap)
+                .bindPopup('<b>ALERT: ' + (currentUser ? currentUser.name : 'Unknown') + '</b><br>' + currentDisasterType.toUpperCase() + ' EMERGENCY');
+            
+            const gatewayIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: "<div style='background-color:#10b981;width:12px;height:12px;border-radius:50%;border:2px solid #fff;'></div>",
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            
+            L.marker([10.7202, 122.5621], {icon: gatewayIcon})
+                .addTo(miniMap)
+                .bindPopup('NDRRMC-VI Gateway');
+            
+            const line = L.polyline([[victimLat, victimLng], [10.7202, 122.5621]], {
+                color: '#dc2626',
+                weight: 2,
+                opacity: 0.6,
+                dashArray: '5, 10'
+            }).addTo(miniMap);
+            
+            document.getElementById('alert-coordinates').textContent = 
+                `LAT: ${victimLat.toFixed(4)}° N | LON: ${victimLng.toFixed(4)}° E`;
+            
+            if(networkMode === 'mesh') {
+                const hopCount = 3;
+                for(let i = 1; i < hopCount; i++) {
+                    const ratio = i / hopCount;
+                    const relayLat = victimLat + (10.7202 - victimLat) * ratio + (Math.random() - 0.5) * 0.005;
+                    const relayLng = victimLng + (122.5621 - victimLng) * ratio + (Math.random() - 0.5) * 0.005;
+                    
+                    const relayIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: "<div style='background-color:#f59e0b;width:10px;height:10px;border-radius:50%;border:2px solid #fff;'></div>",
+                        iconSize: [10, 10],
+                        iconAnchor: [5, 5]
+                    });
+                    
+                    L.marker([relayLat, relayLng], {icon: relayIcon})
+                        .addTo(miniMap)
+                        .bindPopup('Mesh Relay ' + i);
+                }
+            }
+        }
+
+        function initCharts() {
+            const provinceCtx = document.getElementById('provinceChart');
+            if(provinceCtx) {
+                new Chart(provinceCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Iloilo', 'Capiz', 'Aklan', 'Antique', 'Negros Occ.', 'Guimaras'],
+                        datasets: [{
+                            label: 'Alerts (24h)',
+                            data: [12, 8, 5, 7, 9, 3],
+                            backgroundColor: 'rgba(220, 38, 38, 0.6)',
+                            borderColor: '#dc2626',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+
+            const responseCtx = document.getElementById('responseChart');
+            if(responseCtx) {
+                new Chart(responseCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                        datasets: [{
+                            label: 'Avg Response (min)',
+                            data: [4.2, 3.8, 5.1, 3.2, 4.5, 3.9],
+                            borderColor: '#ea580c',
+                            backgroundColor: 'rgba(234, 88, 12, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+
+            const networkCtx = document.getElementById('networkChart');
+            if(networkCtx) {
+                new Chart(networkCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['SMS Success', 'Mesh Success', 'Failed'],
+                        datasets: [{
+                            data: [87, 10, 3],
+                            backgroundColor: ['#10b981', '#06b6d4', '#dc2626'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { 
+                            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } }
+                        }
+                    }
+                });
+            }
+        }
+
+        function generateMockHistory() {
+            const baseTime = new Date();
+            baseTime.setHours(baseTime.getHours() - 2);
+
+            for(let i = 0; i < 50; i++) {
+                const time = new Date(baseTime.getTime() + i * 15 * 60000);
+                const alert = {
+                    id: 'SA-' + (892 - i),
+                    time: time.toLocaleTimeString('en-PH', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                    timestamp: time,
+                    province: provinces[Math.floor(Math.random() * provinces.length)],
+                    type: disasterTypes[Math.floor(Math.random() * disasterTypes.length)],
+                    severity: severityLevels[Math.floor(Math.random() * severityLevels.length)],
+                    status: statuses[Math.floor(Math.random() * statuses.length)],
+                    responseTime: (Math.random() * 8 + 1).toFixed(1) + ' min',
+                    name: 'Victim ' + (i + 1),
+                    coordinates: {
+                        lat: 10.5 + Math.random() * 1.5,
+                        lng: 121.5 + Math.random() * 2
+                    },
+                    network: Math.random() > 0.3 ? 'GSM' : 'MESH',
+                    blood: ['O+', 'A+', 'B+', 'AB+'][Math.floor(Math.random() * 4)],
+                    medical: Math.random() > 0.7 ? 'Asthma' : 'None',
+                    ecName: 'Emergency Contact ' + (i + 1),
+                    ecPhone: '09' + Math.floor(Math.random() * 900000000 + 100000000)
+                };
+                alertHistory.push(alert);
+            }
+        }
+
+        function addToHistory(alert) {
+            alertHistory.unshift(alert);
+            if(alertHistory.length > 100) alertHistory.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const tbody = document.getElementById('alert-history');
+            tbody.innerHTML = '';
+
+            let filtered = alertHistory;
+            if(currentFilter !== 'all') {
+                if(['critical', 'high', 'medium', 'low'].includes(currentFilter)) {
+                filtered = alertHistory.filter(a => a.severity.toLowerCase() === currentFilter);
+                } else {
+                    filtered = alertHistory.filter(a => a.status.toLowerCase() === currentFilter);
+                }
+            }
+
+            filtered.sort((a, b) => {
+                let valA, valB;
+                switch(sortColumn) {
+                    case 'time': valA = a.timestamp; valB = b.timestamp; break;
+                    case 'id': valA = a.id; valB = b.id; break;
+                    case 'province': valA = a.province; valB = b.province; break;
+                    case 'type': valA = a.type; valB = b.type; break;
+                    case 'severity': valA = a.severity; valB = b.severity; break;
+                    case 'status': valA = a.status; valB = b.status; break;
+                    default: valA = a.timestamp; valB = b.timestamp;
+                }
+                
+                if(sortDirection === 'asc') return valA > valB ? 1 : -1;
+                return valA < valB ? 1 : -1;
+            });
+
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageItems = filtered.slice(start, end);
+
+            pageItems.forEach(alert => {
+                const row = document.createElement('tr');
+                row.className = 'alert-history-row border-b border-slate-800';
+                row.onclick = () => openDetailModal(alert);
+                
+                const severityClass = {
+                    'Critical': 'severity-badge-critical',
+                    'High': 'severity-badge-high',
+                    'Medium': 'severity-badge-medium',
+                    'Low': 'severity-badge-low'
+                }[alert.severity];
+
+                const statusClass = {
+                    'Resolved': 'status-resolved',
+                    'Pending': 'status-pending',
+                    'Dispatched': 'status-dispatched',
+                    'Cancelled': 'status-cancelled'
+                }[alert.status];
+
+                row.innerHTML = `
+                    <td class="px-4 py-3 font-mono text-xs text-slate-300">${alert.time}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-disaster-cyan">${alert.id}</td>
+                    <td class="px-4 py-3 text-xs text-white">${alert.province}</td>
+                    <td class="px-4 py-3 text-xs text-slate-300">${alert.type}</td>
+                    <td class="px-4 py-3"><span class="status-badge ${severityClass}">${alert.severity}</span></td>
+                    <td class="px-4 py-3 text-xs ${statusClass} font-semibold">${alert.status}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-slate-400">${alert.responseTime}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('showing-text').textContent = `Showing ${pageItems.length} of ${filtered.length} alerts`;
+            document.getElementById('page-indicator').textContent = `Page ${currentPage}`;
+        }
+
+        function filterHistory(filter) {
+            currentFilter = filter;
+            currentPage = 1;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if(btn.dataset.filter === filter) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            renderHistory();
+        }
+
+        function sortHistory(column) {
+            if(sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'desc';
+            }
+            renderHistory();
+        }
+
+        function changePage(direction) {
+            const maxPage = Math.ceil(alertHistory.length / itemsPerPage);
+            currentPage += direction;
+            if(currentPage < 1) currentPage = 1;
+            if(currentPage > maxPage) currentPage = maxPage;
+            renderHistory();
+        }
+
+        function openDetailModal(alert) {
+            selectedAlertId = alert.id;
+            document.getElementById('modal-title').textContent = `Alert ${alert.id}`;
+            document.getElementById('modal-subtitle').textContent = `${alert.type} • ${alert.severity} • ${alert.time}`;
+            document.getElementById('modal-victim').textContent = alert.name;
+            document.getElementById('modal-contact').textContent = alert.ecPhone;
+            document.getElementById('modal-location').textContent = `${alert.province}, Region VI`;
+            document.getElementById('modal-coords').textContent = `${alert.coordinates.lat.toFixed(4)}°N, ${alert.coordinates.lng.toFixed(4)}°E`;
+            
+            document.getElementById('alert-detail-modal').classList.remove('hidden');
+            document.getElementById('alert-detail-modal').classList.add('flex');
+        }
+
+        function closeDetailModal() {
+            document.getElementById('alert-detail-modal').classList.add('hidden');
+            document.getElementById('alert-detail-modal').classList.remove('flex');
+            selectedAlertId = null;
+        }
+
+        function dispatchFromModal() {
+            showToast('SAR team dispatched');
+            closeDetailModal();
+        }
+
+        function resolveFromModal() {
+            const alert = alertHistory.find(a => a.id === selectedAlertId);
+            if(alert) {
+                alert.status = 'Resolved';
+                renderHistory();
+            }
+            showToast('Alert marked as resolved');
+            closeDetailModal();
+        }
+
+        function escalateFromModal() {
+            showToast('Alert escalated to regional director');
+            closeDetailModal();
+        }
+
+        function exportHistory() {
+            let csv = 'ID,Time,Province,Type,Severity,Status,Response Time,Coordinates\n';
+            alertHistory.forEach(alert => {
+                csv += `${alert.id},${alert.time},${alert.province},${alert.type},${alert.severity},${alert.status},${alert.responseTime},${alert.coordinates.lat},${alert.coordinates.lng}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `safealert-history-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            showToast('History exported to CSV');
+        }
+
+        function refreshHistory() {
+            showToast('History refreshed');
+            renderHistory();
+        }
+    </script>
+
+    <!-- OFFLINE CAPABILITY & PWA INFRASTRUCTURE -->
+    <script>
+    (function() {
+        'use strict';
+
+        // ===== 1. PWA MANIFEST =====
+        const manifest = {
+            name: 'SafeAlert PH - Region VI Command',
+            short_name: 'SafeAlertPH',
+            description: 'Offline-capable emergency SMS lifeline dashboard for Western Visayas',
+            start_url: '.',
+            display: 'standalone',
+            background_color: '#0f172a',
+            theme_color: '#0f172a',
+            orientation: 'any',
+            icons: [
+                {
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect fill='%23dc2626' width='192' height='192' rx='32'/%3E%3Ctext x='96' y='130' font-size='100' text-anchor='middle' fill='white'%3E🆘%3C/text%3E%3C/svg%3E",
+                    sizes: '192x192',
+                    type: 'image/svg+xml'
+                },
+                {
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect fill='%23dc2626' width='512' height='512' rx='64'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E🆘%3C/text%3E%3C/svg%3E",
+                    sizes: '512x512',
+                    type: 'image/svg+xml'
+                }
+            ]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        document.getElementById('pwa-manifest').href = URL.createObjectURL(manifestBlob);
+
+        // ===== 2. SERVICE WORKER =====
+        const swCode = `
+            const CACHE_NAME = 'safealert-ph-v1';
+            const PRECACHE_URLS = [
+                self.location.href,
+                'https://cdn.tailwindcss.com',
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js',
+                'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap'
+            ];
+
+            self.addEventListener('install', event => {
+                event.waitUntil(
+                    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS))
+                );
+                self.skipWaiting();
+            });
+
+            self.addEventListener('activate', event => {
+                event.waitUntil(self.clients.claim());
+            });
+
+            self.addEventListener('fetch', event => {
+                event.respondWith(
+                    caches.match(event.request).then(cached => {
+                        if (cached) return cached;
+                        return fetch(event.request).then(response => {
+                            if (!response || response.status !== 200 || response.type !== 'basic') {
+                                return response;
+                            }
+                            const clone = response.clone();
+                            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                            return response;
+                        }).catch(() => {
+                            // Map tile fallback: return transparent 1x1 PNG
+                            if (event.request.url.includes('tile') || event.request.url.includes('basemaps')) {
+                                return new Response(
+                                    new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,10,73,68,65,84,120,156,99,96,0,0,0,2,0,1,226,33,188,51,0,0,0,0,73,69,78,68,174,66,96,130]),
+                                    { headers: { 'Content-Type': 'image/png' } }
+                                );
+                            }
+                        });
+                    })
+                );
+            });
+        `;
+
+        const swBlob = new Blob([swCode], {type: 'application/javascript'});
+        const swUrl = URL.createObjectURL(swBlob);
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register(swUrl).then(reg => {
+                console.log('[SafeAlert] SW registered:', reg.scope);
+                // Show "Ready for Offline" toast once
+                if (reg.installing) {
+                    reg.installing.addEventListener('statechange', function() {
+                        if (this.state === 'activated') {
+                            showToast('✅ App cached. SafeAlert works offline.');
+                        }
+                    });
+                } else if (reg.active) {
+                    showToast('✅ SafeAlert is offline-ready');
+                }
+            }).catch(err => {
+                console.warn('[SafeAlert] SW registration failed:', err);
+                showToast('⚠️ Offline mode unavailable. Run via local server (HTTPS/localhost).');
+            });
+        } else {
+            showToast('⚠️ Browser does not support offline caching');
+        }
+
+        // ===== 3. ONLINE/OFFLINE UI =====
+        const offlineBadge = document.getElementById('offline-badge');
+        const gatewayBadge = offlineBadge.nextElementSibling;
+
+        function updateConnectivity() {
+            if (!navigator.onLine) {
+                offlineBadge.classList.remove('hidden');
+                offlineBadge.classList.add('flex');
+                gatewayBadge.classList.add('opacity-50');
+                showToast('📡 Offline mode active. Using cached assets.');
+            } else {
+                offlineBadge.classList.add('hidden');
+                offlineBadge.classList.remove('flex');
+                gatewayBadge.classList.remove('opacity-50');
+            }
+        }
+
+        window.addEventListener('online', () => {
+            updateConnectivity();
+            showToast('🌐 Back online');
+        });
+        window.addEventListener('offline', updateConnectivity);
+        updateConnectivity();
+
+        // ===== 4. LEAFLET OFFLINE FALLBACK =====
+        // Patch initIdleMap to handle tile errors gracefully
+        const originalInitIdleMap = window.initIdleMap;
+        window.initIdleMap = function() {
+            originalInitIdleMap();
+            if (window.idleMap) {
+                window.idleMap.on('tileerror', function() {
+                    // Tiles already fallback to transparent in SW, but add grid overlay
+                    if (!document.getElementById('offline-grid')) {
+                        const grid = document.createElement('div');
+                        grid.id = 'offline-grid';
+                        grid.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:400;background-image:linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px);background-size:50px 50px;';
+                        document.getElementById('idle-map').appendChild(grid);
+                    }
+                });
+            }
+        };
+
+        const originalInitMiniMap = window.initMiniMap;
+        window.initMiniMap = function(coords) {
+            originalInitMiniMap(coords);
+            if (window.miniMap) {
+                window.miniMap.on('tileerror', function() {
+                    if (!document.getElementById('offline-grid-mini')) {
+                        const grid = document.createElement('div');
+                        grid.id = 'offline-grid-mini';
+                        grid.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:400;background-image:linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px);background-size:50px 50px;';
+                        document.getElementById('mini-map').appendChild(grid);
+                    }
+                });
+            }
+        };
+
+        // ===== 5. INSTALL PROMPT =====
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Show install hint in mobile menu
+            const menu = document.getElementById('mobile-menu');
+            if (menu && !document.getElementById('install-hint')) {
+                const hint = document.createElement('div');
+                hint.id = 'install-hint';
+                hint.className = 'px-4 py-2 mt-2 bg-emerald-900/30 border border-emerald-500/30 rounded-lg';
+                hint.innerHTML = '<p class="text-emerald-400 text-xs font-semibold text-center cursor-pointer" onclick="window.installPWA()">📲 Tap to Install SafeAlert App</p>';
+                menu.appendChild(hint);
+            }
+        });
+
+        window.installPWA = function() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(result => {
+                    if (result.outcome === 'accepted') {
+                        showToast('SafeAlert installed successfully');
+                    }
+                    deferredPrompt = null;
+                });
+            } else {
+                showToast('Install via browser menu → Add to Home Screen');
+            }
+        };
+    })();
+    </script>
+
+</body>
+</html>
